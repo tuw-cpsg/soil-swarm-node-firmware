@@ -9,12 +9,17 @@
 #include <OneWire.h>
 #include <SimbleeBLE.h>
 
+#define DEBUG
+#ifdef DEBUG
 #define UPDATE_INTERVAL SECONDS(5)
+#else
+#define UPDATE_INTERVAL SECONDS(30)
+#endif
 
 #define BATT_EN_PIN 17 // Pin 12 ; P0.17 ; I/O ; GPIO 17
 #define BATT_PIN 5 // Pin 21 ; P0.15 ; GPIO 5 / ANALOG 6
 
-#define TEMP_PIN_EN 13  // Port 28 ; P0.13 ; GPIO13
+#define TEMP_PIN_EN 13  // Port 28 ; P0.13 ; GPIO13q
 #define TEMP_PIN 14  // Port 29 ; P0.14 ; GPIO14
 
 #define SENSE_EN_PIN   7  // Port 26 / P0.7 / GPIO7
@@ -112,6 +117,8 @@ void setup()
 {
 #ifdef DEBUG
   Serial.begin(9600);
+  Serial.print(getDeviceIdLow(), HEX);
+  Serial.println(getDeviceIdHigh(), HEX);
 #endif
 
   /* --- ADC ------------------------ */
@@ -129,12 +136,14 @@ void setup()
   pinMode(6, OUTPUT);
   digitalWrite(4, LOW);
   digitalWrite(6, LOW);
+
+  led_off();
   
   /* --- CSENSOR -------------------- */
   start_500kHz_clock(10);
   stop_timer1(10);
-  //pinMode(10, OUTPUT);
-  //digitalWrite(10, LOW);    // disable
+  pinMode(SENSE_EN_PIN, OUTPUT);
+  digitalWrite(SENSE_EN_PIN, LOW);    // disable
 
   digitalWrite(TEMP_PIN_EN, HIGH);
   Simblee_ULPDelay( 50 );
@@ -183,9 +192,11 @@ void loop()
   wakeup_time = now + UPDATE_INTERVAL - 100;
   Simblee_ULPDelay( UPDATE_INTERVAL - 100 );
 
+#ifdef DEBUG
   led_on();
   Simblee_ULPDelay( 1 );
   led_off();
+#endif
   
   const uint16_t dry_val = 880;
   const uint16_t wet_val = 440;
@@ -232,6 +243,13 @@ void SimbleeBLE_onDisconnect() {
   Serial.println("Disconnected");
 #endif
   bConnected = false;
+}
+
+void SimbleeBLE_onReceive(char *data, int len)
+{
+  // if the first byte is 0x01 / on / true
+  Serial.print("Received data: ");
+  Serial.println(*data, HEX);
 }
 
 int16_t read_temperature()
