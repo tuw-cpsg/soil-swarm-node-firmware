@@ -128,12 +128,12 @@ void simblee_init(void)
 
 void main(void)
 {
-    //simblee_init();
+    simblee_init();
     
 	int err = 0;
 	err = bt_enable(bt_ready);
 	if (err) {
-		printk("Bluetooth init failed (err %d)\n", err);
+		SYS_LOG_ERR("Bluetooth init failed (err %d)", err);
 		return;
 	}
 
@@ -144,24 +144,21 @@ void main(void)
     int ret = 0;
 
     led_init();
-    SYS_LOG_DBG("CREAT_DEVICE_LIST");
     led_off();
 
     if(battery_init(adc_dev) < 0)
-        printk("Battery init failed\n");
+        SYS_LOG_ERR("Battery init failed");
     if((ret = moisture_init(adc_dev)) < 0)
-        printk("Moisture init failed: %i\n", ret);
+        SYS_LOG_ERR("Moisture init failed: %i", ret);
     if((ret = onewire_init()) < 0)
-        printk("Cannot initialize 1-wire: %i\n", ret);
+        SYS_LOG_ERR("Cannot initialize 1-wire: %i", ret);
     else if((ret = ds18b20_init()) < 0)
-        printk("Cannot initialize DS18B20: %i\n", ret);
+        SYS_LOG_ERR("Cannot initialize DS18B20: %i", ret);
 
     s64_t entry = k_uptime_get();
     s64_t exit = entry;
 
 	while (1) {
-        printk("Entering service loop\n");
-
 		k_sleep(5 * MSEC_PER_SEC - (exit - entry));
 
         entry = k_uptime_get();
@@ -170,7 +167,7 @@ void main(void)
 
 		/* battery level */
 		bas_notify();
-        printk("Battery: %i\n", battery_read_value());
+        SYS_LOG_INF("Battery: %i", battery_read_value());
 
 		/* measure temperature */
         ds18b20_enable();
@@ -189,8 +186,8 @@ void main(void)
         /* environment notification */
         ess_notify(temp, moisture);
 
-        printk("Temperature: %i (%x)\n", temp/16, temp);
-        printk("Moisture:  %i\n", moisture);
+        SYS_LOG_INF("Temperature: %i (%x)", temp/16, temp);
+        SYS_LOG_INF("Moisture:  %i", moisture);
 
         exit = k_uptime_get();
     }

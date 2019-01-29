@@ -66,7 +66,7 @@ static ssize_t read_humi(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 				 sizeof(moisture));
 }
 
-/* Battery Service Declaration */
+/* ESS Declaration */
 static struct bt_gatt_attr attrs[] = {
 	BT_GATT_PRIMARY_SERVICE(BT_UUID_ESS),
 	BT_GATT_CHARACTERISTIC(BT_UUID_TEMPERATURE,
@@ -89,11 +89,11 @@ void ess_init(void)
 void ess_notify(int16_t temperature, int16_t humidity)
 {
 	if (notify_temp && temperature > -1000) {
-	    bt_gatt_notify(NULL, &attrs[1], &temperature, sizeof(temperature));
+	    bt_gatt_notify(NULL, &attrs[2], &temperature, sizeof(temperature));
 	}
 
 	if (notify_humi) {
-        printk("Notify humi\n");
-	    bt_gatt_notify(NULL, &attrs[3], &humidity, sizeof(humidity));
+	    bt_gatt_notify(NULL, &attrs[5], &humidity, sizeof(humidity));
 	}
+
 }
