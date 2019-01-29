@@ -1,0 +1,9 @@
+soil-swarm-node-firmware:
+  description: firmware for the soil swarm node that measures soil moisture and soil temperature
+  name: soil-swarm-node-firmware
+tests:
+  test:
+    harness: bluetooth
+    platform_whitelist: qemu_cortex_m3 qemu_x86
+    tags: bluetooth
+    #    depends_on: adc
