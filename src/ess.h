@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 void ess_init(void);
-void ess_notify(int16_t temperature, int16_t humidity);
+int  ess_notify(s16_t temperature, u16_t humidity);
 
 #ifdef __cplusplus
 }

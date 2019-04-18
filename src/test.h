@@ -5,9 +5,6 @@
  */
 
 #include <zephyr.h>
-#include <power.h>
-#include <soc_power.h>
-#include <misc/printk.h>
 #include <string.h>
 #include <soc.h>
 #include <device.h>

@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 void bas_init(void);
-void bas_notify(void);
+int  bas_notify(u16_t _battery_lvl);
 
 #ifdef __cplusplus
 }

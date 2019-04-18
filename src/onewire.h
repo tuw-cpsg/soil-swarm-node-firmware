@@ -1,9 +1,11 @@
-int  onewire_init(void);
-void OWDepower(void);
-void SetSpeed(int standard);
-int OWTouchReset(void);
-void OWWriteByte(int data, int power);
-int OWReadByte(void);
-int OWTouchByte(int data);
-void OWBlock(unsigned char *data, int data_len);
-int OWOverdriveSkip(unsigned char *data, int data_len);
+#include <zephyr.h>
+
+s8_t  onewire_init(void);
+void  OWDepower(void);
+void  SetSpeed(u8_t standard);
+s16_t OWTouchReset(void);
+void  OWWriteByte(u8_t data, u8_t power);
+u8_t  OWReadByte(void);
+u8_t  OWTouchByte(u8_t data);
+void  OWBlock(u8_t *data, u16_t data_len);
+s16_t OWOverdriveSkip(u8_t *data, u16_t data_len);

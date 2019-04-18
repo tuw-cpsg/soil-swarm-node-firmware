@@ -3,6 +3,7 @@
 #include "settings.h"
 #include <device.h>
 #include <gpio.h>
+#include <logging/log.h>
 
 #include <adc.h>
 #include <hal/nrf_adc.h>
@@ -11,10 +12,12 @@
 #define PWM_DRIVER CONFIG_PWM_NRF5_SW_0_DEV_NAME
 //#define PWM_CHANNEL LED_P
 #define PWM_CHANNEL SENSE_EXCITATION_PIN
-#define SENSE_TIME 1    // 4usec necessary
+#define SENSE_TIME 2    // 4usec necessary
 
 struct device *sense_en;
 struct device *sense_pwm;
+
+LOG_MODULE_REGISTER(moisture);
 
 #define BUFFER_SIZE 1
 static int16_t m_sample_buffer[BUFFER_SIZE];
@@ -48,7 +51,7 @@ void init_sense()
 {
     sense_pwm = device_get_binding(PWM_DRIVER);
     if (!sense_pwm) {
-        printk("Cannot find %s!\n", PWM_DRIVER);
+        LOG_INF("Cannot find %s!\n", PWM_DRIVER);
         return;
     }
 }

@@ -12,7 +12,6 @@
 #include <stddef.h>
 #include <string.h>
 #include <errno.h>
-#include <misc/printk.h>
 #include <misc/byteorder.h>
 #include <zephyr.h>
 
@@ -25,30 +24,32 @@
 static struct bt_gatt_ccc_cfg  temp_ccc_cfg[BT_GATT_CCC_MAX] = {};
 static struct bt_gatt_ccc_cfg  humi_ccc_cfg[BT_GATT_CCC_MAX] = {};
 
-static u8_t notify_temp, notify_humi;
+u8_t ess_temp_notify_enabled, ess_humi_notify_enabled;
 static int16_t temperature;
 static int16_t humidity;
 
 static void temp_ccc_cfg_changed(const struct bt_gatt_attr *attr,
 				 u16_t value)
 {
-	notify_temp = (value == BT_GATT_CCC_NOTIFY) ? 1 : 0;
+	ess_temp_notify_enabled = (value == BT_GATT_CCC_NOTIFY) ? 1 : 0;
 }
 
 static void humi_ccc_cfg_changed(const struct bt_gatt_attr *attr,
 				 u16_t value)
 {
-	notify_humi = (value == BT_GATT_CCC_NOTIFY) ? 1 : 0;
+	ess_humi_notify_enabled = (value == BT_GATT_CCC_NOTIFY) ? 1 : 0;
 }
 
 static ssize_t read_temp(struct bt_conn *conn, const struct bt_gatt_attr *attr,
         void *buf, u16_t len, u16_t offset)
 {
     ds18b20_enable();
+	k_sleep(1);
     int16_t temperature = ds18b20_measure_temp();
-    k_sleep(900);
-    if(temperature == 0)
+    if (temperature == 0) {
+    	k_sleep(750);
         temperature = ds18b20_read_temp();
+	}
     else
         temperature = -1001;
     ds18b20_disable();
@@ -86,14 +87,18 @@ void ess_init(void)
 	bt_gatt_service_register(&ess_svc);
 }
 
-void ess_notify(int16_t temperature, int16_t humidity)
+int ess_notify(s16_t temperature, u16_t humidity)
 {
-	if (notify_temp && temperature > -1000) {
-	    bt_gatt_notify(NULL, &attrs[2], &temperature, sizeof(temperature));
+	int err = 0;
+	if (ess_temp_notify_enabled) {
+	    err = bt_gatt_notify(NULL, &attrs[2], &temperature, sizeof(temperature));
+	}
+	if(err != 0)
+		return err;
+
+	if (ess_humi_notify_enabled) {
+	    err = bt_gatt_notify(NULL, &attrs[5], &humidity, sizeof(humidity));
 	}
 
-	if (notify_humi) {
-	    bt_gatt_notify(NULL, &attrs[5], &humidity, sizeof(humidity));
-	}
-
+	return err;
 }

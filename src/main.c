@@ -6,12 +6,12 @@
 
 #include <zephyr.h>
 #include <zephyr/types.h>
-#include <misc/printk.h>
 #include <misc/byteorder.h>
-#include <logging/sys_log.h>
+#include <logging/log.h>
 #include <settings/settings.h>
 #include <device.h>
 #include <gpio.h>
+#include <soc.h>
 
 #include <stddef.h>
 #include <string.h>
@@ -24,6 +24,7 @@
 #include <bluetooth/gatt.h>
 
 #include "bas.h"
+#include "cts.h"
 #include "ess.h"
 #include "led.h"
 #include "battery.h"
@@ -39,12 +40,53 @@
 #define IBEACON_RSSI 0xc8
 #endif
 
+#ifdef CONFIG_DEBUG
+#define SENSE_INTERVAL 5		// 900 ^= 15min
+#define MEASUREMENTS_SIZE  5	// one measurement per 15 min -> 96 / day
+#else
+#define SENSE_INTERVAL 900		// 900 ^= 15min
+#define MEASUREMENTS_SIZE 960	//1344 	// one measurement per 15 min -> 96 / day
+#endif
+
 #define BT_LE_ADV_CONN_NAME_ID BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE | \
                          BT_LE_ADV_OPT_USE_NAME | BT_LE_ADV_OPT_USE_IDENTITY, \
-                         BT_GAP_ADV_FAST_INT_MIN_1, \
-                         BT_GAP_ADV_FAST_INT_MAX_2)
+                         BT_GAP_ADV_SLOW_INT_MIN, \
+                         BT_GAP_ADV_SLOW_INT_MAX)
+
+#define BT_LE_ADV_NCONN_NAME_ID BT_LE_ADV_PARAM(BT_LE_ADV_OPT_USE_NAME | \
+						 BT_LE_ADV_OPT_USE_IDENTITY, \
+                         BT_GAP_ADV_SLOW_INT_MIN, \
+                         BT_GAP_ADV_SLOW_INT_MAX)
+
+LOG_MODULE_REGISTER(main);
 
 void create_device_list(void);
+
+struct {
+	u32_t timestamp;
+	u16_t battery;
+	u16_t moisture;
+	s16_t temperature;
+} measurements[MEASUREMENTS_SIZE];
+
+s16_t buf_start = 0;
+s16_t buf_end   = 0;
+static bool is_client_connected  = false;
+bool is_sync_enabled = false;
+
+extern u8_t bas_notify_enabled;
+extern u8_t cts_notify_enabled;
+extern u8_t ess_temp_notify_enabled;
+extern u8_t ess_humi_notify_enabled;
+
+//struct bt_le_adv_param *adv_params_conn = BT_LE_ADV_CONN_NAME_ID;
+//struct bt_le_adv_param *adv_params_nconn = BT_LE_ADV_NCONN_NAME_ID;
+struct bt_le_adv_param *adv_params = BT_LE_ADV_CONN_NAME_ID;
+
+enum {
+	NO_DATA_AVAILABLE = 0,
+	DATA_AVAILABLE = BIT(0)
+};
 
 /*
  * Set iBeacon demo advertisement data. These values are for
@@ -52,7 +94,8 @@ void create_device_list(void);
  *
  * UUID:  ec60de83-4b7e-4c75-96c9-2f4e76617a7e
  * Major: 102
- * Minor: 101
+ * Minor[1]: Status Flags
+ * Minor[0]: SW Version
  * RSSI:  -56 dBm
  */
 static const struct bt_data ad[] = {
@@ -66,22 +109,49 @@ static const struct bt_data ad[] = {
                       0x96, 0xc9, /* UUID[7..6] */
                       0x2f, 0x4e, 0x76, 0x61, 0x7a, 0x7e, /* UUID[5..0] */
                       0x00, 0x66, /* Major */
-                      0x00, 0x65, /* Minor */
+                      0x00, 0x66, /* Minor */
                       IBEACON_RSSI) /* Calibrated RSSI @ 1m */
 };
+
+void set_beacon_flags(u8_t flags) {
+	*((u8_t *)(ad[1].data + 22)) = flags;
+}
+
+u8_t get_beacon_flags(void) {
+	return *(ad[1].data + 22);
+}
 
 static void connected(struct bt_conn *conn, u8_t err)
 {
 	if (err) {
-		printk("Connection failed (err %u)\n", err);
-	} else {
-		printk("Connected\n");
+		LOG_INF("Connection failed (err %u)\n", err);
+		return;
 	}
+
+	is_client_connected = true;
+	bt_le_adv_stop();
+	LOG_INF("Connected\n");
 }
 
 static void disconnected(struct bt_conn *conn, u8_t reason)
 {
-	printk("Disconnected (reason %u)\n", reason);
+	LOG_INF("Disconnected (reason %u)\n", reason);
+	is_client_connected = false;
+	bas_notify_enabled = 0;
+	cts_notify_enabled = 0;
+	ess_temp_notify_enabled = 0;
+	ess_humi_notify_enabled = 0;
+
+	//adv_params = adv_params_nconn;
+	if (buf_start == buf_end) {
+		set_beacon_flags(NO_DATA_AVAILABLE);
+	}
+	int err = bt_le_adv_start(adv_params, ad, ARRAY_SIZE(ad), NULL, 0);
+	if (err) {
+		LOG_ERR("Advertising failed to start (err %d)", err);
+		return;
+	}
+    LOG_INF("Advertising successfully started");
 }
 
 static struct bt_conn_cb conn_callbacks = {
@@ -92,24 +162,26 @@ static struct bt_conn_cb conn_callbacks = {
 static void bt_ready(int err)
 {
 	if (err) {
-		SYS_LOG_ERR("Bluetooth init failed (err %d)", err);
+		LOG_ERR("Bluetooth init failed (err %d)", err);
 		return;
 	}
-	SYS_LOG_INF("Bluetooth initialized");
+	LOG_INF("Bluetooth initialized");
 
 	bas_init();
+	cts_init();
     ess_init();
     
 	if (IS_ENABLED(CONFIG_SETTINGS)) {
 		settings_load();
 	}
 
-	err = bt_le_adv_start(BT_LE_ADV_CONN_NAME_ID, ad, ARRAY_SIZE(ad), NULL, 0);
+	set_beacon_flags(NO_DATA_AVAILABLE);
+	err = bt_le_adv_start(adv_params, ad, ARRAY_SIZE(ad), NULL, 0);
 	if (err) {
-		SYS_LOG_ERR("Advertising failed to start (err %d)", err);
+		LOG_ERR("Advertising failed to start (err %d)", err);
 		return;
 	}
-    SYS_LOG_INF("Advertising successfully started");
+    LOG_INF("Advertising successfully started");
 }
 
 void simblee_init(void)
@@ -126,18 +198,44 @@ void simblee_init(void)
     NRF_POWER->DCDCEN = 0;
 }
 
-void main(void)
+void sync_data(struct bt_conn *conn)
 {
-    simblee_init();
-    
-	int err = 0;
-	err = bt_enable(bt_ready);
-	if (err) {
-		SYS_LOG_ERR("Bluetooth init failed (err %d)", err);
+	if (!bas_notify_enabled
+			|| !cts_notify_enabled
+			|| !ess_temp_notify_enabled
+			|| !ess_humi_notify_enabled
+			|| !is_client_connected)
+		return;
+
+	if (buf_start == buf_end) {
+		//bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 		return;
 	}
 
-    create_device_list();
+	/* timestamp */
+	cts_notify(measurements[buf_start].timestamp);
+	/* battery level */
+	bas_notify(measurements[buf_start].battery);
+	/* environment notification */
+	ess_notify(measurements[buf_start].temperature,
+			measurements[buf_start].moisture);
+
+	buf_start = (buf_start + 1) % MEASUREMENTS_SIZE;
+}
+
+void main(void)
+{
+    simblee_init();
+   
+	int err = 0;
+
+	err = bt_enable(bt_ready);
+	if (err) {
+		LOG_ERR("Bluetooth init failed (err %d)", err);
+		return;
+	}
+
+    bt_conn_cb_register(&conn_callbacks);
 
     struct device *adc_dev = device_get_binding(ADC_DEVICE_NAME);
 
@@ -147,48 +245,74 @@ void main(void)
     led_off();
 
     if(battery_init(adc_dev) < 0)
-        SYS_LOG_ERR("Battery init failed");
+        LOG_ERR("Battery init failed");
     if((ret = moisture_init(adc_dev)) < 0)
-        SYS_LOG_ERR("Moisture init failed: %i", ret);
+        LOG_ERR("Moisture init failed: %i", ret);
     if((ret = onewire_init()) < 0)
-        SYS_LOG_ERR("Cannot initialize 1-wire: %i", ret);
+        LOG_ERR("Cannot initialize 1-wire: %i", ret);
     else if((ret = ds18b20_init()) < 0)
-        SYS_LOG_ERR("Cannot initialize DS18B20: %i", ret);
+        LOG_ERR("Cannot initialize DS18B20: %i", ret);
 
-    s64_t entry = k_uptime_get();
-    s64_t exit = entry;
+    u32_t entry = k_uptime_get_32();
+    u32_t exit = entry;
+
+    //sys_pm_ctrl_enable_state(SYS_POWER_STATE_CPU_LPS_1);
+    //sys_pm_ctrl_enable_state(SYS_POWER_STATE_CPU_LPS_2);
+    //sys_pm_force_power_state(SYS_POWER_STATE_CPU_LPS_1);
 
 	while (1) {
-		k_sleep(5 * MSEC_PER_SEC - (exit - entry));
 
-        entry = k_uptime_get();
+		k_sleep(SENSE_INTERVAL * MSEC_PER_SEC - (exit - entry));
 
-        //led_toggle(); continue;
+        entry = k_uptime_get_32();
 
-		/* battery level */
-		bas_notify();
-        SYS_LOG_INF("Battery: %i", battery_read_value());
+        //led_toggle(); //continue;
 
 		/* measure temperature */
         ds18b20_enable();
-		k_sleep(10);
-        int temp = ds18b20_measure_temp();
-		k_sleep(900);
-        if(temp == 0)
+		k_sleep(1);
+        s16_t temp = ds18b20_measure_temp();
+        if(temp == 0) {
+			k_sleep(750);
             temp = ds18b20_read_temp();
+		}
         else
             temp = -1001;
         ds18b20_disable();
 
 		/* measure moisture */
-        int16_t moisture = moisture_read_value();
+        s16_t moisture = moisture_read_value();
 
-        /* environment notification */
-        ess_notify(temp, moisture);
+		measurements[buf_end].timestamp		= entry + 750;
+		measurements[buf_end].battery		= (u16_t)battery_read_value();
+		measurements[buf_end].moisture		= (u16_t)moisture;
+		measurements[buf_end].temperature	= (s16_t)temp;
 
-        SYS_LOG_INF("Temperature: %i (%x)", temp/16, temp);
-        SYS_LOG_INF("Moisture:  %i", moisture);
+		LOG_INF("Timestamp:   %u", measurements[buf_end].timestamp);
+        LOG_INF("Battery:     %u", measurements[buf_end].battery);
+        LOG_INF("Temperature: %i (%x)", measurements[buf_end].temperature / 16,
+				 temp);
+        LOG_INF("Moisture:    %u", measurements[buf_end].moisture);
 
-        exit = k_uptime_get();
+		buf_end = (buf_end + 1) % MEASUREMENTS_SIZE;
+
+		if (get_beacon_flags() == NO_DATA_AVAILABLE) {
+			bt_le_adv_stop();
+
+			set_beacon_flags(DATA_AVAILABLE);
+			int err = bt_le_adv_start(adv_params, ad, ARRAY_SIZE(ad), NULL, 0);
+			if (err) {
+				//adv_params = adv_params_nconn;
+				set_beacon_flags(NO_DATA_AVAILABLE);
+				LOG_ERR("Advertising failed to start (err %d)", err);
+			}
+		}
+
+		if (buf_end == buf_start) {
+			/* TODO resort buffer */
+			buf_start = (buf_start + 1) % MEASUREMENTS_SIZE;
+		}
+
+        exit = k_uptime_get_32();
     }
 }

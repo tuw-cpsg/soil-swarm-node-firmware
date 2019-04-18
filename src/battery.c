@@ -50,7 +50,6 @@ int battery_init(struct device *a_dev) {
 int battery_read_value() {
     int value = 0;
 
-
     if(adc_channel_setup(adc_dev, &adc_cfg) != 0)
         return -1;
     adc_sequence.channels = BIT(adc_cfg.channel_id);
