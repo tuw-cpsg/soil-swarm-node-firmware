@@ -68,7 +68,7 @@ static ssize_t read_humi(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 }
 
 /* ESS Declaration */
-static struct bt_gatt_attr attrs[] = {
+BT_GATT_SERVICE_DEFINE(ess_svc,
 	BT_GATT_PRIMARY_SERVICE(BT_UUID_ESS),
 	BT_GATT_CHARACTERISTIC(BT_UUID_TEMPERATURE,
 			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
@@ -78,26 +78,23 @@ static struct bt_gatt_attr attrs[] = {
 			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
 			       BT_GATT_PERM_READ, read_humi, NULL, &humidity),
 	BT_GATT_CCC(humi_ccc_cfg, humi_ccc_cfg_changed),
-};
-
-static struct bt_gatt_service ess_svc = BT_GATT_SERVICE(attrs);
+);
 
 void ess_init(void)
 {
-	bt_gatt_service_register(&ess_svc);
 }
 
 int ess_notify(s16_t temperature, u16_t humidity)
 {
 	int err = 0;
 	if (ess_temp_notify_enabled) {
-	    err = bt_gatt_notify(NULL, &attrs[2], &temperature, sizeof(temperature));
+	    err = bt_gatt_notify(NULL, &ess_svc.attrs[2], &temperature, sizeof(temperature));
 	}
 	if(err != 0)
 		return err;
 
 	if (ess_humi_notify_enabled) {
-	    err = bt_gatt_notify(NULL, &attrs[5], &humidity, sizeof(humidity));
+	    err = bt_gatt_notify(NULL, &ess_svc.attrs[5], &humidity, sizeof(humidity));
 	}
 
 	return err;

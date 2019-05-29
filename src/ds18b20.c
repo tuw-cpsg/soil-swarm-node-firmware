@@ -25,6 +25,8 @@ s8_t ds18b20_init(void) {
 
 s8_t ds18b20_enable(void)
 {
+	device_set_power_state(ds18b20_dev, DEVICE_PM_ACTIVE_STATE, NULL, NULL);
+
     OWPower();
     return gpio_pin_write(ds18b20_dev, DS18B20_EN_PIN, 1);
 }
@@ -36,6 +38,7 @@ s8_t ds18b20_disable(void)
         return ret;
 
     OWDepower();
+	device_set_power_state(ds18b20_dev, DEVICE_PM_SUSPEND_STATE, NULL, NULL);
 }
 
 s16_t ds18b20_measure_temp(void)

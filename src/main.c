@@ -41,7 +41,7 @@
 #endif
 
 #ifdef CONFIG_DEBUG
-#define SENSE_INTERVAL 5		// 900 ^= 15min
+#define SENSE_INTERVAL 15		// 900 ^= 15min
 #define MEASUREMENTS_SIZE  5	// one measurement per 15 min -> 96 / day
 #else
 #define SENSE_INTERVAL 900		// 900 ^= 15min
@@ -53,6 +53,8 @@
                          BT_GAP_ADV_SLOW_INT_MIN, \
                          BT_GAP_ADV_SLOW_INT_MAX)
 
+// BT_GAP_ADV_SLOW_INT_MIN = 0x0640 ^= 1s
+// BT_GAP_ADV_SLOW_INT_MAX = 0x0780 ^= 1.2s
 #define BT_LE_ADV_NCONN_NAME_ID BT_LE_ADV_PARAM(BT_LE_ADV_OPT_USE_NAME | \
 						 BT_LE_ADV_OPT_USE_IDENTITY, \
                          BT_GAP_ADV_SLOW_INT_MIN, \
@@ -196,6 +198,8 @@ void simblee_init(void)
 
     // disable dc to dc
     NRF_POWER->DCDCEN = 0;
+    NRF_POWER->TASKS_CONSTLAT = 0;
+	NRF_POWER->TASKS_LOWPWR = 1;
 }
 
 void sync_data(struct bt_conn *conn)
@@ -223,9 +227,30 @@ void sync_data(struct bt_conn *conn)
 	buf_start = (buf_start + 1) % MEASUREMENTS_SIZE;
 }
 
+#ifdef CONFIG_DEBUG
+void print_device_list(void) {
+	static struct device *pm_device_list;
+	int count;
+	u32_t power_state;
+
+	device_list_get(&pm_device_list, &count);
+
+	for(int i = 0; i < count; i++)
+	{
+		device_pm_enable(&pm_device_list[i]);
+		device_get_power_state(&pm_device_list[i], &power_state);
+		LOG_INF("device: %s / status: %u", pm_device_list[i].config->name, power_state);
+	}
+}
+#endif
+
 void main(void)
 {
     simblee_init();
+
+#ifdef CONFIG_DEBUG
+	print_device_list();
+#endif
    
 	int err = 0;
 
@@ -241,9 +266,10 @@ void main(void)
 
     int ret = 0;
 
-    led_init();
-    led_off();
+    //led_init();
+    //led_off();
 
+	/*  */
     if(battery_init(adc_dev) < 0)
         LOG_ERR("Battery init failed");
     if((ret = moisture_init(adc_dev)) < 0)
@@ -252,21 +278,23 @@ void main(void)
         LOG_ERR("Cannot initialize 1-wire: %i", ret);
     else if((ret = ds18b20_init()) < 0)
         LOG_ERR("Cannot initialize DS18B20: %i", ret);
+	/*  */
 
     u32_t entry = k_uptime_get_32();
     u32_t exit = entry;
-
-    //sys_pm_ctrl_enable_state(SYS_POWER_STATE_CPU_LPS_1);
-    //sys_pm_ctrl_enable_state(SYS_POWER_STATE_CPU_LPS_2);
-    //sys_pm_force_power_state(SYS_POWER_STATE_CPU_LPS_1);
 
 	while (1) {
 
 		k_sleep(SENSE_INTERVAL * MSEC_PER_SEC - (exit - entry));
 
+#ifdef CONFIG_DEBUG
+		print_device_list();
+#endif
+
         entry = k_uptime_get_32();
 
         //led_toggle(); //continue;
+        //exit = k_uptime_get_32(); continue;
 
 		/* measure temperature */
         ds18b20_enable();
@@ -314,5 +342,10 @@ void main(void)
 		}
 
         exit = k_uptime_get_32();
-    }
+
+#ifdef CONFIG_DEBUG
+		LOG_ERR("loop end");
+		print_device_list();
+#endif
+	}
 }

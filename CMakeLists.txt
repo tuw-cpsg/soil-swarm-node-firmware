@@ -16,4 +16,4 @@ target_sources(app PRIVATE
   src/sys_fatal_error_handler.c
 )
 
-zephyr_library_include_directories($ENV{ZEPHYR_BASE}/samples/bluetooth)
+#zephyr_library_include_directories($ENV{ZEPHYR_BASE}/samples/bluetooth)

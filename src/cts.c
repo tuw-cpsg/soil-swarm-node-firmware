@@ -56,19 +56,17 @@ static ssize_t read_cts(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 }
 
 /* Battery Service Declaration */
-static struct bt_gatt_attr attrs[] = {
+BT_GATT_SERVICE_DEFINE(cts_svc,
 	BT_GATT_PRIMARY_SERVICE(BT_UUID_CTS),
 	BT_GATT_CHARACTERISTIC(BT_UUID_CTS_CURRENT_TIME,
 			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
 			       BT_GATT_PERM_READ, read_cts, NULL, &time),
 	BT_GATT_CCC(cts_ccc_cfg, cts_ccc_cfg_changed),
-};
-
-static struct bt_gatt_service cts_svc = BT_GATT_SERVICE(attrs);
+);
 
 void cts_init(void)
 {
-	bt_gatt_service_register(&cts_svc);
+	//bt_gatt_service_register(&cts_svc);
 }
 
 int cts_notify(u32_t _timestamp)
@@ -77,5 +75,5 @@ int cts_notify(u32_t _timestamp)
 		return 0;
 	}
 
-	return bt_gatt_notify(NULL, &attrs[1], &_timestamp, sizeof(u32_t));
+	return bt_gatt_notify(NULL, &cts_svc.attrs[1], &_timestamp, sizeof(u32_t));
 }

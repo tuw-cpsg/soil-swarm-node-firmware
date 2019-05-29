@@ -49,6 +49,8 @@ int battery_init(struct device *a_dev) {
 
 int battery_read_value() {
     int value = 0;
+	device_set_power_state(battery_en, DEVICE_PM_ACTIVE_STATE, NULL, NULL);
+	device_set_power_state(adc_dev,    DEVICE_PM_ACTIVE_STATE, NULL, NULL);
 
     if(adc_channel_setup(adc_dev, &adc_cfg) != 0)
         return -1;
@@ -57,6 +59,9 @@ int battery_read_value() {
     gpio_pin_write(battery_en, BATTERY_EN_PIN, 1);
     value = adc_read(adc_dev, &adc_sequence);
     gpio_pin_write(battery_en, BATTERY_EN_PIN, 0);
+
+	device_set_power_state(battery_en, DEVICE_PM_SUSPEND_STATE, NULL, NULL);
+	device_set_power_state(adc_dev,    DEVICE_PM_SUSPEND_STATE, NULL, NULL);
 
     if(value < 0)
         return -1;
