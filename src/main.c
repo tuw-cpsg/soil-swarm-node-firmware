@@ -41,8 +41,8 @@
 #endif
 
 #ifdef CONFIG_DEBUG
-#define SENSE_INTERVAL 15		// 900 ^= 15min
-#define MEASUREMENTS_SIZE  5	// one measurement per 15 min -> 96 / day
+#define SENSE_INTERVAL 15
+#define MEASUREMENTS_SIZE  10
 #else
 #define SENSE_INTERVAL 900		// 900 ^= 15min
 #define MEASUREMENTS_SIZE 960	//1344 	// one measurement per 15 min -> 96 / day
@@ -73,6 +73,8 @@ struct {
 
 s16_t buf_start = 0;
 s16_t buf_end   = 0;
+u32_t sense_interval_mult = 1;
+
 static bool is_client_connected  = false;
 bool is_sync_enabled = false;
 
@@ -212,6 +214,7 @@ void sync_data(struct bt_conn *conn)
 		return;
 
 	if (buf_start == buf_end) {
+		sense_interval_mult = 1;
 		//bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 		return;
 	}
@@ -285,7 +288,8 @@ void main(void)
 
 	while (1) {
 
-		k_sleep(SENSE_INTERVAL * MSEC_PER_SEC - (exit - entry));
+		k_sleep((SENSE_INTERVAL * sense_interval_mult)
+					* MSEC_PER_SEC - (exit - entry));
 
 #ifdef CONFIG_DEBUG
 		print_device_list();
@@ -337,8 +341,18 @@ void main(void)
 		}
 
 		if (buf_end == buf_start) {
-			/* TODO resort buffer */
-			buf_start = (buf_start + 1) % MEASUREMENTS_SIZE;
+
+			for(s16_t i = 0; i < MEASUREMENTS_SIZE; i++)
+			{
+				s16_t buf_dst = (buf_start + i) % MEASUREMENTS_SIZE;
+				s16_t buf_src = (buf_start + i * 2) % MEASUREMENTS_SIZE;
+				measurements[buf_dst].timestamp		= measurements[buf_src].timestamp;	 
+				measurements[buf_dst].battery		= measurements[buf_src].battery;
+				measurements[buf_dst].moisture		= measurements[buf_src].moisture;
+				measurements[buf_dst].temperature	= measurements[buf_src].temperature;
+			}
+			buf_end = (buf_start + MEASUREMENTS_SIZE / 2) % MEASUREMENTS_SIZE;
+			sense_interval_mult *= 2;
 		}
 
         exit = k_uptime_get_32();
