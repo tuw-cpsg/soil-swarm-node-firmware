@@ -200,8 +200,8 @@ void simblee_init(void)
 
     // disable dc to dc
     NRF_POWER->DCDCEN = 0;
-    NRF_POWER->TASKS_CONSTLAT = 0;
-	NRF_POWER->TASKS_LOWPWR = 1;
+    //NRF_POWER->TASKS_CONSTLAT = 0;
+	//NRF_POWER->TASKS_LOWPWR = 1;
 }
 
 void sync_data(struct bt_conn *conn)
@@ -269,8 +269,8 @@ void main(void)
 
     int ret = 0;
 
-    //led_init();
-    //led_off();
+    led_init();
+    led_off();
 
 	/*  */
     if(battery_init(adc_dev) < 0)
@@ -288,8 +288,12 @@ void main(void)
 
 	while (1) {
 
-		k_sleep((SENSE_INTERVAL * sense_interval_mult)
-					* MSEC_PER_SEC - (exit - entry));
+		u32_t time_to_sleep = (SENSE_INTERVAL * sense_interval_mult)
+			* MSEC_PER_SEC;
+		if (entry < exit) {
+			time_to_sleep -= (exit - entry);
+		}
+		k_sleep(time_to_sleep);
 
 #ifdef CONFIG_DEBUG
 		print_device_list();
@@ -303,18 +307,22 @@ void main(void)
 		/* measure temperature */
         ds18b20_enable();
 		k_sleep(1);
-        s16_t temp = ds18b20_measure_temp();
+		s16_t temp = -1;
+        temp = ds18b20_measure_temp();
         if(temp == 0) {
 			k_sleep(750);
             temp = ds18b20_read_temp();
 		}
         else
             temp = -1001;
+
         ds18b20_disable();
+		k_sleep(1);
 
 		/* measure moisture */
-        s16_t moisture = moisture_read_value();
 
+        s16_t moisture = moisture_read_value();
+		
 		measurements[buf_end].timestamp		= entry + 750;
 		measurements[buf_end].battery		= (u16_t)battery_read_value();
 		measurements[buf_end].moisture		= (u16_t)moisture;
@@ -341,9 +349,7 @@ void main(void)
 		}
 
 		if (buf_end == buf_start) {
-
-			for(s16_t i = 0; i < MEASUREMENTS_SIZE; i++)
-			{
+			for (s16_t i = 0; i < MEASUREMENTS_SIZE; i++) {
 				s16_t buf_dst = (buf_start + i) % MEASUREMENTS_SIZE;
 				s16_t buf_src = (buf_start + i * 2) % MEASUREMENTS_SIZE;
 				measurements[buf_dst].timestamp		= measurements[buf_src].timestamp;	 

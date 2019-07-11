@@ -85,15 +85,11 @@ static inline s8_t get_bit()
 
 __STATIC_INLINE void set_input(void)
 {
-	//nrf_gpio_cfg(NRF_GPIO_PIN_MAP(cfg->port_num, ONEWIRE_PIN),
-	//        dir, input, pull, drive, NRF_GPIO_PIN_NOSENSE);
-	
 	nrf_gpio_cfg(
 			ONEWIRE_PIN,
 			NRF_GPIO_PIN_DIR_INPUT,
 			NRF_GPIO_PIN_INPUT_CONNECT,
 			NRF_GPIO_PIN_NOPULL,
-			//NRF_GPIO_PIN_PULLUP,
 			NRF_GPIO_PIN_S0S1,
 			NRF_GPIO_PIN_NOSENSE);
 }
@@ -106,7 +102,8 @@ __STATIC_INLINE void set_output_high(void)
 
 s8_t onewire_init(void)
 {
-	onewire_dev = device_get_binding(ONEWIRE_PORT);
+	if(onewire_dev == 0)
+		onewire_dev = device_get_binding(ONEWIRE_PORT);
 	if(onewire_dev == NULL)
 		return -1;
 
@@ -119,7 +116,7 @@ s8_t onewire_init(void)
 	data = get_port_data(onewire_dev);
 	cfg = get_port_cfg(onewire_dev);
 
-	pull = NRF_GPIO_PIN_PULLUP;
+	pull = NRF_GPIO_PIN_NOPULL;
 	dir = NRF_GPIO_PIN_DIR_INPUT;
 	input = NRF_GPIO_PIN_INPUT_DISCONNECT;
 
@@ -298,11 +295,15 @@ u8_t OWReadBit(void)
 	key = irq_lock();
 	clear_bit(); // Drives DQ low
 	k_busy_wait(A); // 2.2us
+	set_bit();
+	irq_unlock(key);
 	set_input();
 	k_busy_wait(E);
 	result = get_bit(); // Sample the bit value from the slave
 	irq_unlock(key);
 	k_busy_wait(F); // Complete the time slot and 10us recovery
+
+	set_output_high();
 
 	return result;
 }
@@ -341,6 +342,8 @@ u8_t OWReadByte(void)
 		if (OWReadBit())
 			result |= 0x80;
 	}
+	nrf_gpio_cfg_output(ONEWIRE_PIN);
+	set_bit();
 
 	return result;
 }
