@@ -6,10 +6,18 @@
 #include <logging/log.h>
 
 #include <adc.h>
-#include <hal/nrf_adc.h>
+//#include <hal/nrf_adc.h>
 #include <pwm.h>
 
+#if defined(CONFIG_SOC_FAMILY_NRF)
+#if defined(CONFIG_PWM_NRF5_SW)
 #define PWM_DRIVER CONFIG_PWM_NRF5_SW_0_DEV_NAME
+#else
+#define PWM_DRIVER DT_NORDIC_NRF_PWM_PWM_0_LABEL
+#endif  /* CONFIG_PWM_NRF5_SW */
+#endif
+
+//#define PWM_DRIVER CONFIG_PWM_NRF5_SW_0_DEV_NAME
 //#define PWM_CHANNEL LED_P
 #define PWM_CHANNEL SENSE_EXCITATION_PIN
 #define SENSE_TIME 800    // 4usec necessary

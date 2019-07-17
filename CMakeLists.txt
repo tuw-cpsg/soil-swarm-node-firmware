@@ -7,7 +7,7 @@ target_sources(app PRIVATE
   src/bas.c
   src/cts.c
   src/ess.c
-  src/led.c
+  #  src/led.c
   src/battery.c
   src/moisture.c
   src/onewire.c

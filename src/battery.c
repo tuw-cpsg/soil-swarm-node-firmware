@@ -5,7 +5,7 @@
 #include <gpio.h>
 
 #include <adc.h>
-#include <hal/nrf_adc.h>
+//#include <hal/nrf_adc.h>
 
 struct device *battery_en;
 

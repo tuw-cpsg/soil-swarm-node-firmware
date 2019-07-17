@@ -21,6 +21,8 @@
 #include <bluetooth/uuid.h>
 #include <bluetooth/gatt.h>
 
+#include "ds18b20.h"
+
 static struct bt_gatt_ccc_cfg  temp_ccc_cfg[BT_GATT_CCC_MAX] = {};
 static struct bt_gatt_ccc_cfg  humi_ccc_cfg[BT_GATT_CCC_MAX] = {};
 

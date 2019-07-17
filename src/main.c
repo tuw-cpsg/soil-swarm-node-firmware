@@ -269,8 +269,8 @@ void main(void)
 
     int ret = 0;
 
-    led_init();
-    led_off();
+    //led_init();
+    //led_off();
 
 	/*  */
     if(battery_init(adc_dev) < 0)
