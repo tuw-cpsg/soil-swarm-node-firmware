@@ -84,18 +84,20 @@ void ess_init(void)
 {
 }
 
-int ess_notify(s16_t temperature, u16_t humidity)
+int ess_notify_temp(s16_t temperature)
 {
-	int err = 0;
-	if (ess_temp_notify_enabled) {
-	    err = bt_gatt_notify(NULL, &ess_svc.attrs[2], &temperature, sizeof(temperature));
-	}
-	if(err != 0)
-		return err;
-
-	if (ess_humi_notify_enabled) {
-	    err = bt_gatt_notify(NULL, &ess_svc.attrs[5], &humidity, sizeof(humidity));
+	if (!ess_temp_notify_enabled) {
+		return 0;
 	}
 
-	return err;
+	return bt_gatt_notify(NULL, &ess_svc.attrs[2], &temperature, sizeof(temperature));
+}
+
+int ess_notify_humi(u16_t humidity)
+{
+	if (!ess_humi_notify_enabled) {
+		return 0;
+	}
+
+	return bt_gatt_notify(NULL, &ess_svc.attrs[5], &humidity, sizeof(humidity));
 }

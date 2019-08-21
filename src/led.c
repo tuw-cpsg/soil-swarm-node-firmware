@@ -1,6 +1,6 @@
 #include "led.h"
 
-#include "settings.h"
+#include "config.h"
 #include <device.h>
 #include <gpio.h>
 
