@@ -69,6 +69,7 @@ static ssize_t read_humi(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 
 /* ESS Declaration */
 BT_GATT_SERVICE_DEFINE(ess_svc,
+//static struct bt_gatt_attr ess_attrs[] = {
 	BT_GATT_PRIMARY_SERVICE(BT_UUID_ESS),
 	BT_GATT_CHARACTERISTIC(BT_UUID_TEMPERATURE,
 			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
@@ -78,10 +79,14 @@ BT_GATT_SERVICE_DEFINE(ess_svc,
 			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
 			       BT_GATT_PERM_READ, read_humi, NULL, &humidity),
 	BT_GATT_CCC(humi_ccc_cfg, humi_ccc_cfg_changed),
+//};
 );
+
+//static struct bt_gatt_service ess_svc = BT_GATT_SERVICE(ess_attrs);
 
 void ess_init(void)
 {
+	//bt_gatt_service_register(&ess_svc);
 }
 
 int ess_notify_temp(s16_t temperature)

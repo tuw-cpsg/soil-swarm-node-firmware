@@ -1,9 +1,9 @@
 #ifdef CONFIG_DEBUG
-#define SENSE_INTERVAL 15
-#define MEASUREMENTS_SIZE  15
+#define SENSE_INTERVAL 900
+#define MEASUREMENTS_SIZE  16
 #else
 #define SENSE_INTERVAL 900		// 900 ^= 15min
-#define MEASUREMENTS_SIZE 960	//1344 	// one measurement per 15 min -> 96 / day
+#define MEASUREMENTS_SIZE 1200	//1344 	// one measurement per 15 min -> 96 / day
 #endif
 
 #define SLEEP_TIME 1000

@@ -1,4 +1,4 @@
-/* main.c - Application main entry point */
+/* main.c - Application main for soil-swarm-node */
 
 /*
  *
@@ -55,6 +55,20 @@
 LOG_MODULE_REGISTER(main);
 
 void create_device_list(void);
+u8_t prepare_beacon_flags(void);
+
+#define STACK_SIZE 1024
+#define PRIORITY 5
+
+K_THREAD_STACK_DEFINE(measure_loop_stack, STACK_SIZE);
+struct k_thread measure_loop_data;
+k_tid_t measure_loop_tid;
+
+K_THREAD_STACK_DEFINE(disconnect_timeout_stack, 32);
+struct k_thread disconnect_timeout_data;
+k_tid_t disconnect_timeout_tid;
+
+void disconnect_timeout(void);
 
 extern volatile struct time_sync remote_ts;
 
@@ -68,6 +82,8 @@ struct {
 s16_t buf_start = 0;
 s16_t buf_end   = 0;
 u32_t sense_interval_mult = 1;
+
+struct k_sem measurements_sem;
 
 static bool is_client_connected  = false;
 bool is_sync_enabled = false;
@@ -151,7 +167,11 @@ static void connected(struct bt_conn *conn, u8_t err)
 	is_client_connected = true;
 	client_connection = conn;
 	bt_le_adv_stop();
-	time_connected = k_uptime_get_32();
+	disconnect_timeout_tid = k_thread_create(&disconnect_timeout_data,
+			disconnect_timeout_stack,
+			K_THREAD_STACK_SIZEOF(disconnect_timeout_stack),
+			disconnect_timeout,
+			NULL, NULL, NULL, 1, 0, 300000);
 	num_connected++;
 	LOG_INF("Connected (%u times)", num_connected);
 }
@@ -172,21 +192,31 @@ static void bt_ready(int err)
 		settings_load();
 	}
 
-	set_beacon_flags(NO_DATA_AVAILABLE);
+	set_beacon_flags(prepare_beacon_flags());
 	start_advertising();
 }
 
 static void disconnected(struct bt_conn *conn, u8_t reason)
 {
 	LOG_INF("Disconnected (reason %u)\n", reason);
-	is_client_connected = false;
-	client_connection = 0;
+
+	if (disconnect_timeout_tid)
+	{
+		k_wakeup(disconnect_timeout_tid);
+	}
+
+	if (client_connection)
+	{
+		bt_conn_unref(client_connection);
+		client_connection = 0;
+	}
+
 	bas_notify_enabled = 0;
 	cts_notify_enabled = 0;
 	ess_temp_notify_enabled = 0;
 	ess_humi_notify_enabled = 0;
 
-	set_beacon_flags(buf_start == buf_end ? NO_DATA_AVAILABLE : DATA_AVAILABLE);
+	set_beacon_flags(prepare_beacon_flags());
 	start_advertising();
 }
 
@@ -199,10 +229,10 @@ void simblee_init(void)
 {
 	// initialize proximityMode
 	NRF_GPIO->PIN_CNF[31] = (GPIO_PIN_CNF_SENSE_Disabled << GPIO_PIN_CNF_SENSE_Pos)
-                        										  | (GPIO_PIN_CNF_DRIVE_S0S1 << GPIO_PIN_CNF_DRIVE_Pos)
-																  | (GPIO_PIN_CNF_PULL_Disabled << GPIO_PIN_CNF_PULL_Pos)
-																  | (GPIO_PIN_CNF_INPUT_Disconnect << GPIO_PIN_CNF_INPUT_Pos)
-																  | (GPIO_PIN_CNF_DIR_Output << GPIO_PIN_CNF_DIR_Pos);
+                        																				  | (GPIO_PIN_CNF_DRIVE_S0S1 << GPIO_PIN_CNF_DRIVE_Pos)
+																										  | (GPIO_PIN_CNF_PULL_Disabled << GPIO_PIN_CNF_PULL_Pos)
+																										  | (GPIO_PIN_CNF_INPUT_Disconnect << GPIO_PIN_CNF_INPUT_Pos)
+																										  | (GPIO_PIN_CNF_DIR_Output << GPIO_PIN_CNF_DIR_Pos);
 	NRF_GPIO->OUTCLR = (1UL << 31);
 
 	// disable dc to dc
@@ -267,14 +297,21 @@ void print_device_list(void) {
 }
 #endif
 
-void check_and_reset_beacon_flags(void)
+u8_t prepare_beacon_flags(void)
 {
 	u8_t flags = 0;
+
 	if(remote_ts.is_remotely_synced == 0)
 		flags |= TIME_SYNC_NEEDED;
 	if(buf_start != buf_end)
 		flags |= DATA_AVAILABLE;
 
+	return flags;
+}
+
+void check_and_reset_beacon_flags(void)
+{
+	u8_t flags = prepare_beacon_flags();
 	if (get_beacon_flags() != flags) {
 		bt_le_adv_stop();
 
@@ -284,7 +321,7 @@ void check_and_reset_beacon_flags(void)
 }
 
 u32_t time_until(struct time_sync time_sync) {
-	u32_t now = k_uptime_get_32() % (SENSE_INTERVAL * MSEC_PER_SEC);
+	u32_t now = (u32_t)(k_uptime_get() % (SENSE_INTERVAL * MSEC_PER_SEC));
 	u32_t synced = time_sync.time_synced % (SENSE_INTERVAL * MSEC_PER_SEC);
 	u32_t ret = 0;
 
@@ -299,26 +336,33 @@ u32_t time_until(struct time_sync time_sync) {
 	return ret;
 }
 
-#define STACK_SIZE 1024
-#define PRIORITY 5
+void disconnect_timeout(void)
+{
+	/* if connection is still up after 15min, (auto-)disconnect */
+	if (is_client_connected == true)
+	{
+		bt_conn_disconnect(client_connection, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+	}
 
-K_THREAD_STACK_DEFINE(measure_loop_stack, STACK_SIZE);
-struct k_thread measure_loop_data;
+	disconnect_timeout_tid = 0;
+}
 
 void measure_loop(void)
 {
+	u8_t buf_full = 0;
+
 	while(1) {
-		k_sleep(time_until(remote_ts));
+		u32_t time_to_sleep = time_until(remote_ts);
+		while(time_to_sleep > 300000)
+		{
+			k_sleep(300000);
+			time_to_sleep = time_until(remote_ts);
+		}
+		k_sleep(time_to_sleep);
 
 		LOG_INF("enter loop %x %x", buf_start, buf_end);
 
-		/* if connection is still up after 15min, (auto-)disconnect */
-		if ((is_client_connected == true) && ((k_uptime_get_32() - time_connected) > 900000))
-		{
-			bt_conn_disconnect(client_connection, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
-		}
-
-		/* measure temperature */
+		/* get temperature */
 		ds18b20_enable();
 		k_sleep(1);
 		s16_t temp = -1;
@@ -333,11 +377,30 @@ void measure_loop(void)
 		ds18b20_disable();
 		k_sleep(1);
 
-		/* measure moisture */
-
+		/* get moisture */
 		s16_t moisture = moisture_read_value();
 
-		measurements[buf_end].timestamp		= k_uptime_get_32();
+		/* get timestamp */
+		u64_t timestamp = k_uptime_get();
+
+		if (buf_full) {
+			k_sem_take(&measurements_sem, K_FOREVER);
+			for (s16_t i = 0; i < MEASUREMENTS_SIZE / 2; i++) {
+				s16_t buf_dst = (buf_start + i) % MEASUREMENTS_SIZE;
+				s16_t buf_src = (buf_start + i * 2) % MEASUREMENTS_SIZE;
+				measurements[buf_dst].timestamp		= measurements[buf_src].timestamp;
+				measurements[buf_dst].battery		= measurements[buf_src].battery;
+				measurements[buf_dst].moisture		= measurements[buf_src].moisture;
+				measurements[buf_dst].temperature	= measurements[buf_src].temperature;
+			}
+			buf_end = (buf_start + MEASUREMENTS_SIZE / 2 + 1) % MEASUREMENTS_SIZE;
+			k_sem_give(&measurements_sem);
+			sense_interval_mult *= 2;
+			buf_full = 0;
+		}
+
+		k_sem_take(&measurements_sem, K_FOREVER);
+		measurements[buf_end].timestamp		= (u32_t)timestamp;
 		measurements[buf_end].battery		= (u16_t)battery_read_value();
 		measurements[buf_end].moisture		= (u16_t)moisture;
 		measurements[buf_end].temperature	= (s16_t)temp;
@@ -349,19 +412,9 @@ void measure_loop(void)
 		LOG_INF("Moisture:    %u", measurements[buf_end].moisture);
 
 		buf_end = (buf_end + 1) % MEASUREMENTS_SIZE;
+		k_sem_give(&measurements_sem);
 
-		if (buf_end == buf_start) {
-			for (s16_t i = 0; i < MEASUREMENTS_SIZE; i++) {
-				s16_t buf_dst = (buf_start + i) % MEASUREMENTS_SIZE;
-				s16_t buf_src = (buf_start + i * 2) % MEASUREMENTS_SIZE;
-				measurements[buf_dst].timestamp		= measurements[buf_src].timestamp;
-				measurements[buf_dst].battery		= measurements[buf_src].battery;
-				measurements[buf_dst].moisture		= measurements[buf_src].moisture;
-				measurements[buf_dst].temperature	= measurements[buf_src].temperature;
-			}
-			buf_end = (buf_start + MEASUREMENTS_SIZE / 2) % MEASUREMENTS_SIZE;
-			sense_interval_mult *= 2;
-		}
+		buf_full = (buf_end == buf_start);
 
 		check_and_reset_beacon_flags();
 	}
@@ -401,13 +454,14 @@ void main(void)
 	else if((ret = ds18b20_init()) < 0)
 		LOG_ERR("Cannot initialize DS18B20: %i", ret);
 
-	check_and_reset_beacon_flags();
-
 	while (remote_ts.is_remotely_synced == 0) {
+		check_and_reset_beacon_flags();
 		k_sleep(100);
 	}
 
-	k_thread_create(&measure_loop_data, measure_loop_stack,
+	k_sem_init(&measurements_sem, 1, 1);
+
+	measure_loop_tid = k_thread_create(&measure_loop_data, measure_loop_stack,
 			K_THREAD_STACK_SIZEOF(measure_loop_stack),
 			measure_loop,
 			NULL, NULL, NULL,

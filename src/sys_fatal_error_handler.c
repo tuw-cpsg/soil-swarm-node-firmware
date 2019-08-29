@@ -8,8 +8,6 @@
 #include <fatal.h>
 #include <misc/reboot.h>
 
-//LOG_MODULE_DECLARE(os);
-
 /**
  *
  * @brief Fatal error handler
