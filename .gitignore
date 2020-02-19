@@ -1,0 +1,5 @@
+.config_rtc1
+.externalToolBuilders/
+.project
+build/
+soil-swarm-node-firmware.launch
