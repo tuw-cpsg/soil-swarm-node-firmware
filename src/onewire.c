@@ -114,7 +114,7 @@ s8_t onewire_init(void)
 	pin = ONEWIRE_PIN;
 
 	data = get_port_data(onewire_dev);
-	cfg = get_port_cfg(onewire_dev);
+	cfg  = get_port_cfg(onewire_dev);
 
 	pull = NRF_GPIO_PIN_NOPULL;
 	dir = NRF_GPIO_PIN_DIR_INPUT;

@@ -20,22 +20,16 @@ void led_init() {
 }
 
 void led_on() {
-	device_set_power_state(led, DEVICE_PM_ACTIVE_STATE, NULL, NULL);
     led_status = 1;
     gpio_pin_write(led, LED_P, led_status);
-	device_set_power_state(led, DEVICE_PM_SUSPEND_STATE, NULL, NULL);
 }
 
 void led_off() {
-	device_set_power_state(led, DEVICE_PM_ACTIVE_STATE, NULL, NULL);
     led_status = 0;
     gpio_pin_write(led, LED_P, led_status);
-	device_set_power_state(led, DEVICE_PM_SUSPEND_STATE, NULL, NULL);
 }
 
 void led_toggle() {
-	device_set_power_state(led, DEVICE_PM_ACTIVE_STATE, NULL, NULL);
     led_status = !led_status;
     gpio_pin_write(led, LED_P, led_status);
-	device_set_power_state(led, DEVICE_PM_SUSPEND_STATE, NULL, NULL);
 }

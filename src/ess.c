@@ -8,12 +8,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <zephyr.h>
 #include <zephyr/types.h>
 #include <stddef.h>
 #include <string.h>
 #include <errno.h>
 #include <misc/byteorder.h>
-#include <zephyr.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -21,38 +21,44 @@
 #include <bluetooth/uuid.h>
 #include <bluetooth/gatt.h>
 
-static struct bt_gatt_ccc_cfg  temp_ccc_cfg[BT_GATT_CCC_MAX] = {};
-static struct bt_gatt_ccc_cfg  humi_ccc_cfg[BT_GATT_CCC_MAX] = {};
+#include "ds18b20.h"
+#include "moisture.h"
+#include "util.h"
 
-u8_t ess_temp_notify_enabled, ess_humi_notify_enabled;
-static int16_t temperature;
-static int16_t humidity;
+static ssize_t read_temp(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+        void *buf, u16_t len, u16_t offset);
+static ssize_t read_humi(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+			 void *buf, u16_t len, u16_t offset);
 
-static void temp_ccc_cfg_changed(const struct bt_gatt_attr *attr,
-				 u16_t value)
-{
-	ess_temp_notify_enabled = (value == BT_GATT_CCC_NOTIFY) ? 1 : 0;
-}
-
-static void humi_ccc_cfg_changed(const struct bt_gatt_attr *attr,
-				 u16_t value)
-{
-	ess_humi_notify_enabled = (value == BT_GATT_CCC_NOTIFY) ? 1 : 0;
-}
+/* ESS Declaration */
+BT_GATT_SERVICE_DEFINE(ess_svc,
+	BT_GATT_PRIMARY_SERVICE(BT_UUID_ESS),
+	BT_GATT_CHARACTERISTIC(BT_UUID_TEMPERATURE,
+			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
+			       BT_GATT_PERM_READ, read_temp, NULL, NULL),
+	BT_GATT_CCC(NULL, BT_GATT_PERM_NONE),
+	BT_GATT_CHARACTERISTIC(BT_UUID_HUMIDITY,
+			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
+			       BT_GATT_PERM_READ, read_humi, NULL, NULL),
+	BT_GATT_CCC(NULL, BT_GATT_PERM_NONE),
+);
 
 static ssize_t read_temp(struct bt_conn *conn, const struct bt_gatt_attr *attr,
         void *buf, u16_t len, u16_t offset)
 {
-    ds18b20_enable();
-	k_sleep(1);
-    int16_t temperature = ds18b20_measure_temp();
+    ds18b20_enable(K_FOREVER);
+    k_sleep(1);
+    s16_t temperature = ds18b20_measure_temp();
     if (temperature == 0) {
     	k_sleep(750);
         temperature = ds18b20_read_temp();
 	}
-    else
+    else {
         temperature = -1001;
+    }
     ds18b20_disable();
+
+    temperature = util_temperature_to_ble(temperature);
 
     return bt_gatt_attr_read(conn, attr, buf, len, offset, &temperature,
             sizeof(temperature));
@@ -61,48 +67,8 @@ static ssize_t read_temp(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 static ssize_t read_humi(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 			 void *buf, u16_t len, u16_t offset)
 {
-    int16_t moisture = moisture_read_value();
+    u16_t humidity = util_humidity_to_ble(moisture_read_value());
 
-	return bt_gatt_attr_read(conn, attr, buf, len, offset, &moisture,
-				 sizeof(moisture));
-}
-
-/* ESS Declaration */
-BT_GATT_SERVICE_DEFINE(ess_svc,
-//static struct bt_gatt_attr ess_attrs[] = {
-	BT_GATT_PRIMARY_SERVICE(BT_UUID_ESS),
-	BT_GATT_CHARACTERISTIC(BT_UUID_TEMPERATURE,
-			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
-			       BT_GATT_PERM_READ, read_temp, NULL, &temperature),
-	BT_GATT_CCC(temp_ccc_cfg, temp_ccc_cfg_changed),
-	BT_GATT_CHARACTERISTIC(BT_UUID_HUMIDITY,
-			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
-			       BT_GATT_PERM_READ, read_humi, NULL, &humidity),
-	BT_GATT_CCC(humi_ccc_cfg, humi_ccc_cfg_changed),
-//};
-);
-
-//static struct bt_gatt_service ess_svc = BT_GATT_SERVICE(ess_attrs);
-
-void ess_init(void)
-{
-	//bt_gatt_service_register(&ess_svc);
-}
-
-int ess_notify_temp(s16_t temperature)
-{
-	if (!ess_temp_notify_enabled) {
-		return 0;
-	}
-
-	return bt_gatt_notify(NULL, &ess_svc.attrs[2], &temperature, sizeof(temperature));
-}
-
-int ess_notify_humi(u16_t humidity)
-{
-	if (!ess_humi_notify_enabled) {
-		return 0;
-	}
-
-	return bt_gatt_notify(NULL, &ess_svc.attrs[5], &humidity, sizeof(humidity));
+	return bt_gatt_attr_read(conn, attr, buf, len, offset, &humidity,
+				 sizeof(humidity));
 }

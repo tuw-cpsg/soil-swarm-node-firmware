@@ -1,0 +1,6 @@
+# Kconfig - rfd77101_soil_swarm_node_hardware
+
+if RFD77101_SOIL_SWARM_NODE_HARDWARE
+
+
+endif # RFD77101_SOIL_SWARM_NODE_HARDWARE

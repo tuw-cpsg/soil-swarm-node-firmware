@@ -1,0 +1,14 @@
+# Copyright (c) 2020 Christian Hirsch
+# SPDX-License-Identifier: Apache-2.0
+
+config MEASUREMENTS_SIZE
+        int "Number of measurements stored in RAM"
+        default 480
+        range 0 4094
+
+config SENSE_INTERVAL
+        int "Number of measurements stored in RAM"
+        default 10
+        range 0 4094
+
+source "Kconfig.zephyr"

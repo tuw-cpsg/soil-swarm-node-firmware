@@ -1,6 +1,7 @@
 #include <zephyr.h>
 
 s8_t  onewire_init(void);
+void  OWPower(void);
 void  OWDepower(void);
 void  SetSpeed(u8_t standard);
 s16_t OWTouchReset(void);

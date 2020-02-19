@@ -9,7 +9,7 @@
 #include <hal/nrf_adc.h>
 #include <pwm.h>
 
-#define PWM_DRIVER CONFIG_PWM_NRF5_SW_0_DEV_NAME
+#define PWM_DRIVER DT_INST_0_NORDIC_NRF_SW_PWM_LABEL
 //#define PWM_CHANNEL LED_P
 #define PWM_CHANNEL SENSE_EXCITATION_PIN
 #define SENSE_TIME 800    // 4usec necessary
@@ -56,34 +56,8 @@ void init_sense()
     }
 }
 
-void resume_devices() {
-	if (device_set_power_state(sense_pwm, DEVICE_PM_ACTIVE_STATE, NULL, NULL) != 0) {
-		LOG_ERR("Cannot set PWM device to active state");
-	}
-	if (device_set_power_state(sense_en,  DEVICE_PM_ACTIVE_STATE, NULL, NULL) != 0) {
-		LOG_ERR("Cannot set SENSE EN device to active state");
-	}
-	if (device_set_power_state(adc_moisture_dev,  DEVICE_PM_ACTIVE_STATE, NULL, NULL) != 0) {
-		LOG_ERR("Cannot set ADC device to active state");
-	}
-}
-
-void suspend_devices() {
-	if (device_set_power_state(sense_pwm, DEVICE_PM_LOW_POWER_STATE, NULL, NULL) != 0) {
-		LOG_ERR("Cannot set PWM device to suspend state");
-	}
-	if (device_set_power_state(sense_en,  DEVICE_PM_SUSPEND_STATE, NULL, NULL) != 0) {
-		LOG_ERR("Cannot set SENSE EN device to suspend state");
-	}
-	if (device_set_power_state(adc_moisture_dev,  DEVICE_PM_SUSPEND_STATE, NULL, NULL) != 0) {
-		LOG_ERR("Cannot set ADC device to suspend state");
-	}
-}
-
 void start_sense()
 {
-	resume_devices();
-
     gpio_pin_write(sense_en, SENSE_EN_PIN, 1);
     pwm_pin_set_cycles(sense_pwm, PWM_CHANNEL,
         4, 3);
@@ -94,8 +68,6 @@ void stop_sense()
     pwm_pin_set_cycles(sense_pwm, PWM_CHANNEL,
         4, 0);
     gpio_pin_write(sense_en, SENSE_EN_PIN, 0);
-
-	suspend_devices();
 }
 
 int moisture_init(struct device *a_dev) {

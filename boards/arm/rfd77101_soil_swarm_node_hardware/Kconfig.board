@@ -1,0 +1,5 @@
+# Kconfig - rfd77101_soil_swarm_node_hardware board configuration
+
+config  RFD77101_SOIL_SWARM_NODE_HARDWARE
+	bool "rfd77101_soil_swarm_node_hardware"
+	depends on SOC_NRF51822_QFAC

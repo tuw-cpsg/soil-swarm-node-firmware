@@ -2,10 +2,14 @@
 #include "onewire.h"
 
 #include "config.h"
+
+#include <zephyr.h>
 #include <device.h>
 #include <gpio.h>
 
 struct device *ds18b20_dev;
+
+K_SEM_DEFINE(ds18b20_guard, 1, 1);
 
 s8_t ds18b20_init(void) {
     ds18b20_dev = device_get_binding(DS18B20_EN_PORT);
@@ -13,7 +17,7 @@ s8_t ds18b20_init(void) {
         return -1;
 
     s8_t ret = gpio_pin_configure(ds18b20_dev, DS18B20_EN_PIN, GPIO_DIR_OUT);
-    if(ret != NULL)
+    if(ret != 0)
         return ret;
 
     SetSpeed(1);
@@ -23,18 +27,28 @@ s8_t ds18b20_init(void) {
     return 0;
 }
 
-s8_t ds18b20_enable(void)
+int ds18b20_enable(s32_t timeout)
 {
+	int err = k_sem_take(&ds18b20_guard, timeout);
+	if (err != 0)
+		return err;
+
     OWPower();
+
     return gpio_pin_write(ds18b20_dev, DS18B20_EN_PIN, 1);
 }
 
-s8_t ds18b20_disable(void)
+int ds18b20_disable(void)
 {
 	OWDepower();
-    s8_t ret = gpio_pin_write(ds18b20_dev, DS18B20_EN_PIN, 0);
-    if(ret != 0)
+
+	int ret = gpio_pin_write(ds18b20_dev, DS18B20_EN_PIN, 0);
+
+    k_sem_give(&ds18b20_guard);
+
+    if (ret != 0) {
         return ret;
+    }
 
 	return 0;
 }
@@ -52,7 +66,6 @@ s16_t ds18b20_measure_temp(void)
 
 s16_t ds18b20_read_temp(void)
 {
-    s8_t ret;
 	u8_t data[9];
 
     if(OWTouchReset())
@@ -61,8 +74,10 @@ s16_t ds18b20_read_temp(void)
     OWWriteByte(0xCC, 0);  // Send Skip ROM command to select single device
     OWWriteByte(0xBE, 0);  // read 9 bytes of scratchpad
 
-    for(u8_t i=0; i<9; i++)
+    for (u8_t i=0; i<9; i++)
+    {
         data[i] = OWReadByte();
+    }
 
 	OWTouchReset();
 
