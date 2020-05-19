@@ -15,7 +15,6 @@ struct measurement {
 	s16_t temperature;
 };
 
-u8_t node_initialize(void);
 void node_start_sensing(s32_t delay);
 
 size_t node_buf_get_elem_size(void);

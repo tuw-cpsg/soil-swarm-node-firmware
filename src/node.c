@@ -1,6 +1,7 @@
 #include "node.h"
 
 #include <zephyr.h>
+#include <init.h>
 #include <logging/log.h>
 #include <device.h>
 
@@ -41,7 +42,7 @@ LOG_MODULE_REGISTER(node);
 
 K_TIMER_DEFINE(loop_timer, node_loop, NULL);
 
-u8_t node_initialize(void)
+static int node_initialize(struct device *arg)
 {
 	int ret = 0;
 
@@ -49,22 +50,28 @@ u8_t node_initialize(void)
 
 	if (battery_init(adc_dev) < 0) {
 		LOG_ERR("Battery init failed");
+		return -ENODEV;
 	}
 	if ((ret = moisture_init(adc_dev)) < 0) {
 		LOG_ERR("Moisture init failed: %i", ret);
+		return -ENODEV;
 	}
 	if ((ret = onewire_init()) < 0) {
 		LOG_ERR("Cannot initialize 1-wire: %i", ret);
+		return -ENODEV;
 	}
 	else if ((ret = ds18b20_init()) < 0) {
 		LOG_ERR("Cannot initialize DS18B20: %i", ret);
+		return -ENODEV;
 	}
 
 #ifdef CONFIG_DEBUG
 	k_timer_start(&loop_timer, SENSE_INTERVAL, SENSE_INTERVAL);
 #endif
 
-	return ret;
+	LOG_INF("successfully initialized");
+
+	return 0;
 }
 
 void node_start_sensing(s32_t delay)
@@ -205,3 +212,5 @@ u8_t node_buf_get_finish(size_t cnt)
 
 	return 1;
 }
+
+SYS_INIT(node_initialize, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);

@@ -4,7 +4,7 @@
 
 #include "config.h"
 #include <device.h>
-#include <gpio.h>
+#include <drivers/gpio.h>
 
 #include <hal/nrf_gpio.h>
 #include <hal/nrf_gpiote.h>
@@ -40,7 +40,7 @@ struct gpio_nrfx_cfg {
 static u8_t pin;
 
 static struct gpio_nrfx_data *data;
-static struct gpio_nrfx_cfg *cfg;
+static const struct gpio_nrfx_cfg *cfg;
 
 static nrf_gpio_pin_pull_t pull;
 static nrf_gpio_pin_dir_t dir;
@@ -75,10 +75,9 @@ static inline void set_bit()
 
 static inline s8_t get_bit()
 {
-	int ret = 0;
-	u32_t value = 0;
-	if((ret = gpio_pin_read(onewire_dev, ONEWIRE_PIN, &value)) != 0)
-		return (s8_t) ret;
+	int value = gpio_pin_get(onewire_dev, ONEWIRE_PIN);
+	if(value < 0)
+		return (s8_t) value;
 	
 	return value != 0;
 }
@@ -107,7 +106,7 @@ s8_t onewire_init(void)
 	if(onewire_dev == NULL)
 		return -1;
 
-	s8_t ret = gpio_pin_configure(onewire_dev, ONEWIRE_PIN, GPIO_DIR_OUT);
+	s8_t ret = gpio_pin_configure(onewire_dev, ONEWIRE_PIN, GPIO_OUTPUT);
 	if(ret != 0)
 		return ret;
 
@@ -120,14 +119,14 @@ s8_t onewire_init(void)
 	dir = NRF_GPIO_PIN_DIR_INPUT;
 	input = NRF_GPIO_PIN_INPUT_DISCONNECT;
 
-	switch ((GPIO_DIR_IN | GPIO_PUD_PULL_UP) & (GPIO_DS_LOW_MASK | GPIO_DS_HIGH_MASK)) {
+	switch ((GPIO_INPUT | GPIO_PULL_UP) & (GPIO_DS_LOW_MASK | GPIO_DS_HIGH_MASK)) {
 		case GPIO_DS_DFLT_LOW | GPIO_DS_DFLT_HIGH:
 			drive = NRF_GPIO_PIN_S0S1;
 			break;
 		case GPIO_DS_DFLT_LOW | GPIO_DS_ALT_HIGH:
 			drive = NRF_GPIO_PIN_S0H1;
 			break;
-		case GPIO_DS_DFLT_LOW | GPIO_DS_DISCONNECT_HIGH:
+		case GPIO_DS_DFLT_LOW | GPIO_OPEN_DRAIN:
 			drive = NRF_GPIO_PIN_S0D1;
 			break;
 
@@ -137,14 +136,14 @@ s8_t onewire_init(void)
 		case GPIO_DS_ALT_LOW | GPIO_DS_ALT_HIGH:
 			drive = NRF_GPIO_PIN_H0H1;
 			break;
-		case GPIO_DS_ALT_LOW | GPIO_DS_DISCONNECT_HIGH:
+		case GPIO_DS_ALT_LOW | GPIO_OPEN_DRAIN:
 			drive = NRF_GPIO_PIN_H0D1;
 			break;
 
-		case GPIO_DS_DISCONNECT_LOW | GPIO_DS_DFLT_HIGH:
+		case GPIO_OPEN_SOURCE | GPIO_DS_DFLT_HIGH:
 			drive = NRF_GPIO_PIN_D0S1;
 			break;
-		case GPIO_DS_DISCONNECT_LOW | GPIO_DS_ALT_HIGH:
+		case GPIO_OPEN_SOURCE | GPIO_DS_ALT_HIGH:
 			drive = NRF_GPIO_PIN_D0H1;
 			break;
 
@@ -154,7 +153,7 @@ s8_t onewire_init(void)
 
 	SetSpeed(1);
 	set_input();
-	gpio_pin_write(onewire_dev, ONEWIRE_PIN, 0);
+	gpio_pin_set(onewire_dev, ONEWIRE_PIN, 0);
 
 	while(0)
 	{
@@ -226,7 +225,7 @@ s16_t OWTouchReset(void)
 {
 	s16_t result;
 
-	gpio_pin_configure(onewire_dev, ONEWIRE_PIN, GPIO_DIR_IN | GPIO_PUD_PULL_UP);
+	gpio_pin_configure(onewire_dev, ONEWIRE_PIN, GPIO_INPUT | GPIO_PULL_UP);
 	u8_t i=0;
 	while(get_bit() != 1)
 	{
@@ -237,7 +236,7 @@ s16_t OWTouchReset(void)
 	}
 
 
-	gpio_pin_configure(onewire_dev, ONEWIRE_PIN, GPIO_DIR_OUT);
+	gpio_pin_configure(onewire_dev, ONEWIRE_PIN, GPIO_OUTPUT);
 	k_busy_wait(G);
 	// Drives DQ low
 	clear_bit();

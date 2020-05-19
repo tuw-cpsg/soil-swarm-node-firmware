@@ -41,11 +41,11 @@ BT_GATT_SERVICE_DEFINE(cts_svc,
 				BT_GATT_CHRC_READ | BT_GATT_CHRC_WRITE,
 				BT_GATT_PERM_READ | BT_GATT_PERM_WRITE,
 				read_cts, write_cts, cts_exact_time_256),
-				BT_GATT_CCC(NULL, NULL),
+				BT_GATT_CCC(NULL, BT_GATT_PERM_NONE),
 );
 
 /* no leap seconds! */
-u32_t exact_time_256_to_unix_sec(u8_t *ct)
+static u32_t exact_time_256_to_unix_sec(u8_t *ct)
 {
 	u32_t year = (u32_t)sys_le16_to_cpu(*(u16_t *)ct);
 
@@ -83,7 +83,7 @@ u32_t exact_time_256_to_unix_sec(u8_t *ct)
 	return time_sec;
 }
 
-void unix_sec_to_exact_time_256(u32_t unix_sec, u8_t *et256)
+static void unix_sec_to_exact_time_256(u32_t unix_sec, u8_t *et256)
 {
 	u32_t tmp = 0;
 
@@ -105,6 +105,7 @@ void unix_sec_to_exact_time_256(u32_t unix_sec, u8_t *et256)
 	/* day of month */
 	tmp  = (u32_t) *(u16_t *)et256 - 1970;
 	tmp *= 36525;
+	tmp += 50;
 	tmp /= 100;
 	tmp  = (unix_sec / 3600 / 24) - tmp + 1;
 
@@ -132,6 +133,9 @@ void unix_sec_to_exact_time_256(u32_t unix_sec, u8_t *et256)
 	}
 
 	et256[3] = (u8_t) tmp;
+	if (et256[2] < 3 && (*(u16_t *)et256 - 1970) % 4 == 2) {
+		et256[3]++;
+	}
 }
 
 static ssize_t read_cts(struct bt_conn *conn, const struct bt_gatt_attr *attr,

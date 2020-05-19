@@ -5,7 +5,7 @@
 
 #include <zephyr.h>
 #include <device.h>
-#include <gpio.h>
+#include <drivers/gpio.h>
 
 struct device *ds18b20_dev;
 
@@ -16,7 +16,7 @@ s8_t ds18b20_init(void) {
     if(ds18b20_dev == NULL)
         return -1;
 
-    s8_t ret = gpio_pin_configure(ds18b20_dev, DS18B20_EN_PIN, GPIO_DIR_OUT);
+    s8_t ret = gpio_pin_configure(ds18b20_dev, DS18B20_EN_PIN, GPIO_OUTPUT);
     if(ret != 0)
         return ret;
 
@@ -35,14 +35,14 @@ int ds18b20_enable(s32_t timeout)
 
     OWPower();
 
-    return gpio_pin_write(ds18b20_dev, DS18B20_EN_PIN, 1);
+    return gpio_pin_set(ds18b20_dev, DS18B20_EN_PIN, 1);
 }
 
 int ds18b20_disable(void)
 {
 	OWDepower();
 
-	int ret = gpio_pin_write(ds18b20_dev, DS18B20_EN_PIN, 0);
+	int ret = gpio_pin_set(ds18b20_dev, DS18B20_EN_PIN, 0);
 
     k_sem_give(&ds18b20_guard);
 

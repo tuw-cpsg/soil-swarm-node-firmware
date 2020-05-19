@@ -2,12 +2,12 @@
 
 #include "config.h"
 #include <device.h>
-#include <gpio.h>
+#include <drivers/gpio.h>
 #include <logging/log.h>
 
-#include <adc.h>
+#include <drivers/adc.h>
 #include <hal/nrf_adc.h>
-#include <pwm.h>
+#include <drivers/pwm.h>
 
 #define PWM_DRIVER DT_INST_0_NORDIC_NRF_SW_PWM_LABEL
 //#define PWM_CHANNEL LED_P
@@ -58,23 +58,23 @@ void init_sense()
 
 void start_sense()
 {
-    gpio_pin_write(sense_en, SENSE_EN_PIN, 1);
+	gpio_pin_set(sense_en, SENSE_EN_PIN, 1);
     pwm_pin_set_cycles(sense_pwm, PWM_CHANNEL,
-        4, 3);
+        4, 3, 0);
 }
 
 void stop_sense()
 {
     pwm_pin_set_cycles(sense_pwm, PWM_CHANNEL,
-        4, 0);
-    gpio_pin_write(sense_en, SENSE_EN_PIN, 0);
+        4, 0, 0);
+    gpio_pin_set(sense_en, SENSE_EN_PIN, 0);
 }
 
 int moisture_init(struct device *a_dev) {
     sense_en = device_get_binding(SENSE_EN_PORT);
 
-    gpio_pin_configure(sense_en, SENSE_EN_PIN, GPIO_DIR_OUT);
-    gpio_pin_write(sense_en, SENSE_EN_PIN, 0);
+    gpio_pin_configure(sense_en, SENSE_EN_PIN, GPIO_OUTPUT);
+    gpio_pin_set(sense_en, SENSE_EN_PIN, 0);
     
     if(a_dev == 0)
         adc_moisture_dev = device_get_binding(ADC_DEVICE_NAME);

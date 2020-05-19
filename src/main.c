@@ -2,11 +2,11 @@
 
 #include <zephyr.h>
 #include <zephyr/types.h>
-#include <misc/byteorder.h>
+#include <sys/byteorder.h>
 #include <logging/log.h>
 #include <settings/settings.h>
 #include <device.h>
-#include <gpio.h>
+#include <drivers/gpio.h>
 #include <soc.h>
 
 #include <stddef.h>
@@ -50,6 +50,8 @@ bool is_sync_enabled = false;
 struct bt_conn *client_connected = 0;
 u32_t time_connected = 0;
 
+struct bt_conn *default_conn;
+
 u16_t num_connected = 0;
 
 struct bt_le_adv_param *adv_params = BT_LE_ADV_CONN_NAME_ID;
@@ -66,6 +68,8 @@ static const struct bt_data ad[] = {
 };
 
 void start_advertising() {
+	bt_le_adv_start(BT_LE_ADV_CONN_NAME_ID, ad, ARRAY_SIZE(ad), NULL, 0);
+	return;
 	int err = 0, err_cnt = 0;
 	do {
 		err = bt_le_adv_start(adv_params, ad, ARRAY_SIZE(ad), NULL, 0);
@@ -89,16 +93,28 @@ static void connected(struct bt_conn *conn, u8_t err)
 		return;
 	}
 
-	is_client_connected = true;
 	client_connected = conn;
-	bt_le_adv_stop();
+	is_client_connected = true;
+
 	disconnect_timeout_tid = k_thread_create(&disconnect_timeout_data,
 			disconnect_timeout_stack,
 			K_THREAD_STACK_SIZEOF(disconnect_timeout_stack),
 			disconnect_timeout,
 			NULL, NULL, NULL, 1, 0, 300000);
 	num_connected++;
+
 	LOG_INF("Connected (%u times)", num_connected);
+}
+
+static void disconnected(struct bt_conn *conn, u8_t reason)
+{
+	LOG_INF("Disconnected (reason %u)\n", reason);
+	is_client_connected = false;
+
+	if (disconnect_timeout_tid)
+	{
+		k_wakeup(disconnect_timeout_tid);
+	}
 }
 
 static void bt_ready(int err)
@@ -111,18 +127,6 @@ static void bt_ready(int err)
 
 	if (IS_ENABLED(CONFIG_SETTINGS)) {
 		settings_load();
-	}
-
-	start_advertising();
-}
-
-static void disconnected(struct bt_conn *conn, u8_t reason)
-{
-	LOG_INF("Disconnected (reason %u)\n", reason);
-
-	if (disconnect_timeout_tid)
-	{
-		k_wakeup(disconnect_timeout_tid);
 	}
 
 	start_advertising();
@@ -154,11 +158,6 @@ void main(void)
 		return;
 	}
 	bt_conn_cb_register(&conn_callbacks);
-
-	err = node_initialize();
-	if (err != 0) {
-		LOG_ERR("Node initializing failed");
-	}
 
 	while (1) {
 		k_sleep(K_FOREVER);

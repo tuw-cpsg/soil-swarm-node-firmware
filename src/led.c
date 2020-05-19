@@ -2,7 +2,7 @@
 
 #include "config.h"
 #include <device.h>
-#include <gpio.h>
+#include <drivers/gpio.h>
 
 struct device *led;
 uint8_t led_status = 0;

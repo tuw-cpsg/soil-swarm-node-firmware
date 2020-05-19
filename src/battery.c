@@ -2,9 +2,9 @@
 
 #include "config.h"
 #include <device.h>
-#include <gpio.h>
+#include <drivers/gpio.h>
 
-#include <adc.h>
+#include <drivers/adc.h>
 #include <hal/nrf_adc.h>
 
 struct device *battery_en;
@@ -33,8 +33,8 @@ struct adc_sequence adc_sequence = {
 int battery_init(struct device *a_dev) {
     battery_en = device_get_binding(BATTERY_EN_PORT);
 
-    gpio_pin_configure(battery_en, BATTERY_EN_PIN, GPIO_DIR_OUT);
-    gpio_pin_write(battery_en, BATTERY_EN_PIN, 0);
+    gpio_pin_configure(battery_en, BATTERY_EN_PIN, GPIO_OUTPUT);
+    gpio_pin_set(battery_en, BATTERY_EN_PIN, 0);
     
     if(a_dev == 0)
         adc_dev = device_get_binding(ADC_DEVICE_NAME);
@@ -54,9 +54,9 @@ int battery_read_value() {
         return -1;
     adc_sequence.channels = BIT(adc_cfg.channel_id);
 
-    gpio_pin_write(battery_en, BATTERY_EN_PIN, 1);
+    gpio_pin_set(battery_en, BATTERY_EN_PIN, 1);
     value = adc_read(adc_dev, &adc_sequence);
-    gpio_pin_write(battery_en, BATTERY_EN_PIN, 0);
+    gpio_pin_set(battery_en, BATTERY_EN_PIN, 0);
 
     if(value < 0)
         return -1;
