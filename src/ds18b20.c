@@ -27,7 +27,7 @@ s8_t ds18b20_init(void) {
     return 0;
 }
 
-int ds18b20_enable(s32_t timeout)
+int ds18b20_enable(k_timeout_t timeout)
 {
 	int err = k_sem_take(&ds18b20_guard, timeout);
 	if (err != 0)

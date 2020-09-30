@@ -8,12 +8,10 @@
 
 #include "battery.h"
 
-#include "util.h"
-
 static ssize_t read_blvl(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 		void *buf, u16_t len, u16_t offset)
 {
-	u8_t value = util_battery_to_ble(battery_read_value());
+	u16_t value = (u16_t) battery_sample();// battery_level_pptt(battery_sample());
 
 	return bt_gatt_attr_read(conn, attr, buf, len, offset, &value,
 			sizeof(value));

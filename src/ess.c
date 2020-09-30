@@ -47,10 +47,10 @@ static ssize_t read_temp(struct bt_conn *conn, const struct bt_gatt_attr *attr,
         void *buf, u16_t len, u16_t offset)
 {
     ds18b20_enable(K_FOREVER);
-    k_sleep(1);
+    k_sleep(K_MSEC(1));
     s16_t temperature = ds18b20_measure_temp();
     if (temperature == 0) {
-    	k_sleep(750);
+    	k_sleep(K_MSEC(750));
         temperature = ds18b20_read_temp();
 	}
     else {

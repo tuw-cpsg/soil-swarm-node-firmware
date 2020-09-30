@@ -181,7 +181,7 @@ static ssize_t write_cts(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 
 	}
 
-	now  = cts_ref_unix_sec % (SENSE_INTERVAL / 1000);
+	now  = cts_ref_unix_sec % (SENSE_INTERVAL);
 	now  = 1000 * now + (cts_uptime_synced_ms % 1000);
 
 	node_start_sensing(SENSE_INTERVAL - now);

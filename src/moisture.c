@@ -9,7 +9,7 @@
 #include <hal/nrf_adc.h>
 #include <drivers/pwm.h>
 
-#define PWM_DRIVER DT_INST_0_NORDIC_NRF_SW_PWM_LABEL
+#define PWM_DRIVER DT_N_S_sw_pwm_P_label
 //#define PWM_CHANNEL LED_P
 #define PWM_CHANNEL SENSE_EXCITATION_PIN
 #define SENSE_TIME 800    // 4usec necessary
@@ -76,10 +76,7 @@ int moisture_init(struct device *a_dev) {
     gpio_pin_configure(sense_en, SENSE_EN_PIN, GPIO_OUTPUT);
     gpio_pin_set(sense_en, SENSE_EN_PIN, 0);
     
-    if(a_dev == 0)
-        adc_moisture_dev = device_get_binding(ADC_DEVICE_NAME);
-    else
-        adc_moisture_dev = a_dev;
+	adc_moisture_dev = device_get_binding(DT_LABEL(DT_ALIAS(adc_0)));
 
     if(adc_moisture_dev == 0)
         return -1;

@@ -46,12 +46,10 @@ static int node_initialize(struct device *arg)
 {
 	int ret = 0;
 
-	struct device *adc_dev = device_get_binding(ADC_DEVICE_NAME);
+	struct device *adc_dev = device_get_binding(DT_LABEL(DT_ALIAS(adc_0)));
 
-	if (battery_init(adc_dev) < 0) {
-		LOG_ERR("Battery init failed");
-		return -ENODEV;
-	}
+	battery_init(adc_dev);
+
 	if ((ret = moisture_init(adc_dev)) < 0) {
 		LOG_ERR("Moisture init failed: %i", ret);
 		return -ENODEV;
@@ -66,7 +64,7 @@ static int node_initialize(struct device *arg)
 	}
 
 #ifdef CONFIG_DEBUG
-	k_timer_start(&loop_timer, SENSE_INTERVAL, SENSE_INTERVAL);
+	k_timer_start(&loop_timer, K_SECONDS(SENSE_INTERVAL), K_SECONDS(SENSE_INTERVAL));
 #endif
 
 	LOG_INF("successfully initialized");
@@ -76,7 +74,7 @@ static int node_initialize(struct device *arg)
 
 void node_start_sensing(s32_t delay)
 {
-	k_timer_start(&loop_timer, delay, SENSE_INTERVAL);
+	k_timer_start(&loop_timer, K_MSEC(delay), K_SECONDS(SENSE_INTERVAL));
 }
 
 static void node_loop(struct k_timer *timer)
@@ -99,10 +97,10 @@ static void node_loop_worker(void *p1, void *p2, void *p3)
 
 	/* get temperature */
 	ds18b20_enable(K_FOREVER);
-	k_sleep(1);
+	k_sleep(K_MSEC(1));
 	s16_t temp = ds18b20_measure_temp();
 	if(temp == 0) {
-		k_sleep(750);
+		k_sleep(K_MSEC(750));
 		temp = ds18b20_read_temp();
 	}
 	else {
@@ -112,6 +110,9 @@ static void node_loop_worker(void *p1, void *p2, void *p3)
 
 	s64_t ts = k_uptime_get();
 	ts /= 1000;
+
+	/* measure battery */
+	s16_t batt_mV = battery_sample();
 
 	if (buf_full) {
 		k_sem_take(&measurements_sem, K_FOREVER);
@@ -131,7 +132,7 @@ static void node_loop_worker(void *p1, void *p2, void *p3)
 
 	k_sem_take(&measurements_sem, K_FOREVER);
 	measurements[buf_end].timestamp		= (u32_t)ts;
-	measurements[buf_end].battery		= util_battery_to_v(battery_read_value());
+	measurements[buf_end].battery		= (u16_t) batt_mV / 10;
 	measurements[buf_end].moisture		= util_humidity_to_ble(moisture_read_value());
 	measurements[buf_end].temperature	= util_temperature_to_ble(temp);
 

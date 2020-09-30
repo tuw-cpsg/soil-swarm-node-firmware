@@ -26,14 +26,14 @@
 #define BT_LE_ADV_CONN_NAME_ID BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE | \
 		BT_LE_ADV_OPT_USE_NAME | BT_LE_ADV_OPT_USE_IDENTITY, \
 		BT_GAP_ADV_SLOW_INT_MIN, \
-		BT_GAP_ADV_SLOW_INT_MAX)
+		BT_GAP_ADV_SLOW_INT_MAX, NULL)
 
 // BT_GAP_ADV_SLOW_INT_MIN = 0x0640 ^= 1s
 // BT_GAP_ADV_SLOW_INT_MAX = 0x0780 ^= 1.2s
 #define BT_LE_ADV_NCONN_NAME_ID BT_LE_ADV_PARAM(BT_LE_ADV_OPT_USE_NAME | \
 		BT_LE_ADV_OPT_USE_IDENTITY, \
 		BT_GAP_ADV_SLOW_INT_MIN, \
-		BT_GAP_ADV_SLOW_INT_MAX)
+		BT_GAP_ADV_SLOW_INT_MAX, NULL)
 
 LOG_MODULE_REGISTER(main);
 
@@ -64,7 +64,8 @@ static const struct bt_data ad[] = {
 				0x10, /* Eddystone-URL frame type */
 				0x04, /* Calibrated Tx power at 0m */
 				0x00, /* URL Scheme Prefix http://www. */
-				'a','f','a','r','c','l','o','u','d','.','e','u','/')
+				//'a','f','a','r','c','l','o','u','d','.','e','u','/')
+				'a','f','a','r','c','l','o','u','d','.','a','t','/')
 };
 
 void start_advertising() {
@@ -76,7 +77,7 @@ void start_advertising() {
 		if(err == 0 || err_cnt > 3)
 			break;
 		err_cnt++;
-		k_sleep(15 * MSEC_PER_SEC);
+		k_sleep(K_MSEC(15));
 	} while(err);
 
 	if (err) {
@@ -100,7 +101,7 @@ static void connected(struct bt_conn *conn, u8_t err)
 			disconnect_timeout_stack,
 			K_THREAD_STACK_SIZEOF(disconnect_timeout_stack),
 			disconnect_timeout,
-			NULL, NULL, NULL, 1, 0, 300000);
+			NULL, NULL, NULL, 1, 0, K_SECONDS(300));
 	num_connected++;
 
 	LOG_INF("Connected (%u times)", num_connected);

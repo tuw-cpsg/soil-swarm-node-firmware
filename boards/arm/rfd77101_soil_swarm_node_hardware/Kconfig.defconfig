@@ -5,12 +5,12 @@ if RFD77101_SOIL_SWARM_NODE_HARDWARE
 config BOARD
 	default "rfd77101_soil_swarm_node_hardware"
 
-if ADC
+#if ADC
 
-config ADC_0
-	default y
+#config ADC_0
+#	default y
 
-endif # ADC
+#endif # ADC
 
 config BT_CTLR
 	default BT
